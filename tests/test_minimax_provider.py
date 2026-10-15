@@ -81,7 +81,7 @@ class MiniMaxProviderTests(unittest.TestCase):
         )
         self.assertEqual(
             Config.MINIMAX_MODEL_IDS,
-            ("MiniMax-M2.7",),
+            ("MiniMax-M3", "MiniMax-M2.7"),
         )
 
     def test_client_uses_selected_endpoint_and_model(self) -> None:
@@ -118,7 +118,7 @@ class MiniMaxProviderTests(unittest.TestCase):
 
         self.assertEqual(
             [model.id for model in response.data],
-            ["MiniMax-M2.7"],
+            ["MiniMax-M3", "MiniMax-M2.7"],
         )
         self.assertEqual(
             [model.owned_by for model in response.data],
@@ -145,8 +145,8 @@ class MiniMaxProviderTests(unittest.TestCase):
                     openai_routes.create_chat_completion(request)
                 )
 
-            self.assertEqual(client.model, "MiniMax-M2.7")
-            self.assertEqual(response.model, "MiniMax-M2.7")
+            self.assertEqual(client.model, "MiniMax-M3")
+            self.assertEqual(response.model, "MiniMax-M3")
         finally:
             openai_routes._client = previous_client
             openai_routes._lock = previous_lock
