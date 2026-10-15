@@ -1158,14 +1158,6 @@ async def create_chat_completion(
     if not request.messages:
         raise HTTPException(status_code=400, detail="messages array cannot be empty")
 
-    if Config.PROVIDER == "minimax" and any(
-        _contains_attachment(message.content) for message in request.messages
-    ):
-        raise HTTPException(
-            status_code=501,
-            detail="Attachments are not supported by the MiniMax provider.",
-        )
-
     client = _get_client()
     model_id = _resolve_model_id(request.model)
     session_id = _extract_session_id(raw_request, getattr(request, "user", None))
@@ -1216,12 +1208,20 @@ async def create_chat_completion(
             if msg.role == "user" and isinstance(msg.content, list):
                 image_urls = _extract_image_urls(msg.content)
                 for url in image_urls:
-                    local_path = await _download_file(url)
+                    # MiniMax accepts OpenAI-compatible image/video URL parts;
+                    # retain the original URL so it can be sent to transport.
+                    local_path = url if Config.PROVIDER == "minimax" else await _download_file(url)
                     if local_path:
                         image_paths.append(local_path)
                 file_attachments = _extract_file_attachments(msg.content)
                 for fa in file_attachments:
-                    local_path = await _download_file(fa)
+                    if Config.PROVIDER == "minimax":
+                        local_path = (
+                            fa.get("url")
+                            or f"data:{fa.get('mime_type', 'application/octet-stream')};base64,{fa['data_b64']}"
+                        )
+                    else:
+                        local_path = await _download_file(fa)
                     if local_path:
                         file_paths.append(local_path)
 
@@ -1728,12 +1728,6 @@ async def create_response(
     # ── Validate ────────────────────────────────────────────
     if not request.input:
         raise HTTPException(status_code=400, detail="input cannot be empty")
-
-    if Config.PROVIDER == "minimax" and _contains_attachment(request.input):
-        raise HTTPException(
-            status_code=501,
-            detail="Attachments are not supported by the MiniMax provider.",
-        )
 
     client = _get_client()
     model_id = _resolve_model_id(request.model)

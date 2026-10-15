@@ -194,34 +194,20 @@ class MiniMaxProviderTests(unittest.TestCase):
             openai_routes._thread_message_count = previous_count
             openai_routes._last_response_time = previous_response_time
 
-    def test_chat_route_rejects_minimax_attachments_before_provider(self) -> None:
-        client = RecordingProviderClient()
-        request = ChatCompletionRequest(
-            messages=[
-                ChatMessage(
-                    role="user",
-                    content=[
-                        {"type": "text", "text": "Describe this"},
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": "https://example.com/image.png"},
-                        },
-                    ],
-                )
-            ]
+    def test_chat_route_dispatches_minimax_image_attachment(self) -> None:
+        opener = RecordingOpener()
+        client = MiniMaxClient(api_key="test-key", opener=opener)
+        asyncio.run(
+            client.send_message(
+                "Describe this",
+                image_paths=["https://example.com/image.png"],
+                model="MiniMax-M2.7",
+                stateless=True,
+            )
         )
-        previous_client = openai_routes._client
-        openai_routes._client = client
-
-        try:
-            with patch.object(Config, "PROVIDER", "minimax"):
-                with self.assertRaises(HTTPException) as raised:
-                    asyncio.run(openai_routes.create_chat_completion(request))
-
-            self.assertEqual(raised.exception.status_code, 501)
-            self.assertIsNone(client.model)
-        finally:
-            openai_routes._client = previous_client
+        payload = json.loads(opener.request.data.decode("utf-8"))
+        self.assertEqual(payload["messages"][0]["content"][0], {"type": "text", "text": "Describe this"})
+        self.assertEqual(payload["messages"][0]["content"][1]["type"], "image_url")
 
     def test_startup_selects_direct_client_without_browser(self) -> None:
         fake_client = object()
